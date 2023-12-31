@@ -1,0 +1,98 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cloud-workflow-admin0
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: system:node:0.0.0.0
+    #name: system:node:k8s4-master
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cloud-workflow-admin1
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: system:node:1.1.1.1
+    #name: system:node:k8s4-node1
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cloud-workflow-admin2
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: system:node:2.2.2.2
+    #name: system:node:k8s4-node2
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cloud-workflow-admin3
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: system:node:3.3.3.3
+    #name: system:node:k8s4-node2
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cloud-workflow-admin4
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: system:node:4.4.4.4
+    #name: system:node:k8s4-node2
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cloud-workflow-admin5
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: system:node:5.5.5.5
+    #name: system:node:k8s4-node2
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cloud-workflow-admin6
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: system:node:6.6.6.6
+    #name: system:node:k8s4-node2
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+

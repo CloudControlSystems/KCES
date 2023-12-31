@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: resource-usage
+  namespace: cloudcontrol
+  labels:
+    app: resource
+spec:
+  selector:
+    app: usage
+  ports:
+  - port: 7077
+    protocol: TCP
+    targetPort: 7077
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-usage-deploy
+  namespace: cloudcontrol
+  labels:
+    app: usage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: usage
+  template:
+    metadata:
+      labels:
+        app: usage
+    spec:
+      nodeSelector: ##添加的配置
+        node-2: "192.168.0.162" ##打的标签是什么，这里就写什么
+      volumes:
+        - name: log-volume
+          hostPath:
+            path: /home
+        - name: config-volume
+          hostPath:
+            path: /etc/kubernetes
+        - name: current-pem-volume
+          hostPath:
+            path: /etc/kubernetes/ssl
+      containers:
+        - name: resource-usage-ctr
+          image: shanchenggang/resource-usage:v1.0
+          imagePullPolicy: IfNotPresent
+          #imagePullPolicy: Never
+          ports:
+            - containerPort: 7077
+              hostPort: 7077
+          volumeMounts:
+            - name: log-volume
+              mountPath: /home
+            - name: config-volume
+              mountPath: /etc/kubernetes
+            - name: current-pem-volume
+              mountPath: /etc/kubernetes/ssl
+          env:
+            - name: MASTER_IP
+              valueFrom:
+                configMapKeyRef:
+                  name: cluster-information
+                  key: master.ip
+            - name: GATHER_TIME
+              valueFrom:
+                configMapKeyRef:
+                  name: cluster-information
+                  key: gather.time
+            - name: NODE_NUM
+              valueFrom:
+                configMapKeyRef:
+                  name: cluster-information
+                  key: node.num
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: grpc
+  name: cluster-information
+  namespace: cloudcontrol
+data:
+  master.ip: 0.0.0.0
+  node.num: "6"
+  gather.time: "500"
+
