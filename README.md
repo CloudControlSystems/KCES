@@ -54,6 +54,18 @@ More information on `Cloud-Edge Workflow Scheduling Engine` refers to our former
     1. Chenggang Shan, Yuanqing Xia, Yufeng Zhan, Jinhui Zhang. KubeAdaptor: A docking framework for workflow containerization on Kubernetes[J]. Future Generation Computer Systems, 2023, 148:584–599. 
        Github：https://github.com/CloudControlSystems/KubeAdaptor
 
+More information on `resource allocation strategy` about `worklfow scheduling engine` 
+refers to our former work:
+
+    2. Chenggang Shan, Chuge Wu, Yuanqing Xia, Zehua Guo, Danyang Liu, Jinhui Zhang. Adaptive Resource Allocation for Workflow Containerization on Kubernetes [J]. Journal of Systems Engineering and Electronics, 2023:34(3), 723-743.
+       https://github.com/CloudControlSystems/ResourceAllocation
+       https://github.com/CloudControlSystems/OOM-Test
+
+More information on `Containerized Worklflow Builder` refers to our former work:
+
+    3. Chenggang Shan, Guan Wang, Yuanqing Xia, Yufeng Zhan, Jinhui Zhang. Containerized Workflow Builder for Kubernetes [C]. 2021 IEEE 23rd International Conference on High Performance Computing & Communications~(HPCC), Haikou, China, 2021: 685–692.
+       https://github.com/shanchenggang/cwb
+
 ## Resource description
 
 ### ./resourceScaling
@@ -68,7 +80,7 @@ running the IoT application workflow in the cloud-edge scenario, evaluates the
 performance of the `KCES` scheme, and verifies the effect of the task horizontal 
 roaming and vertical offloading algorithms.
 
-#### ./baseline
+#### ./resourceScaling/baseline
 This directory includes `TaskContainerBuilder` directories that contain the source 
 codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`. 
 Herein, `Resource Allocator` follows the `First-Come-First-Serve` (`FCFS`) scheme, and 
@@ -78,7 +90,7 @@ the resource allocation strategy is implemented. Otherwise, it needs to wait for
 other task Pods on the node to complete and release resources to meet the resource 
 requirements requested by the current task.
 
-#### ./experiments
+#### ./resourceScaling/experiments
 This directory includes experimental deployment files. The users can deploy the 
 experiments of workflow injections through `deploy.sh` and clear this experiments 
 through `clear.sh`. The `ipNode.txt` stores the whole cluster nodes' ip address and 
@@ -96,35 +108,35 @@ The edges and device end belong to distinct edge scenarios, such as `edge-1` and
 in the cloud, with continuous injection of workflows.
 ![Cloud-edge testbed.](figures/testbed.png "the overview of Cloud-edge testbed.")
 
-#### ./resourceScalingMethod
+#### ./resourceScaling/resourceScalingMethod
 This directory includes `TaskContainerBuilder` directories that contain the source
 codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`.
 Herein, `Resource Allocator` follows the resource scaling strategy, aims to make 
 each cloud or edge node host as many workflow tasks as possible, and maximizes the 
 resource utilization of cloud-edge nodes without violating the task deadline.
 
-#### ./resourceUsage
+#### ./resourceScaling/resourceUsage
 This directory includes the source codes of the resource gathering module. 
 You can build the Docker image by the `Dockerfile` file or pull the image of 
 this module from the Docker Hub.
 
     docker pull shanchenggang/resource-usage:v1.0
 
-#### ./WorkflowInjector-constant
+#### ./resourceScaling/WorkflowInjector-constant
 This directory includes the source codes of the workflow injection module under 
 Constant Arrival Pattern. You can build Docker image by `Dockerfile` file or pull 
 the image of this module from Docker Hub.
 
     docker pull shanchenggang/workflow-injector:v9.0
 
-#### ./WorkflowInjector-linear
+#### ./resourceScaling/WorkflowInjector-linear
 This directory includes the source codes of the workflow injection module under 
 Linear Arrival Pattern. You can build Docker image by `Dockerfile` file or pull the 
 image of this module from Docker Hub.
 
     docker pull shanchenggang/workflow-injector:v9.1
 
-#### ./WorkflowInjector-pyramid
+#### ./resourceScaling/WorkflowInjector-pyramid
 This directory includes the source codes of the workflow injection module under 
 Pyramid Arrival Pattern. You can build Docker image by `Dockerfile` file or pull the 
 image of this module from Docker Hub.
@@ -141,11 +153,11 @@ workflow tasks in an edge scenario.
 This section verifies the effect of the task horizontal roaming and vertical 
 offloading algorithms of the `KCES` scheme.
 
-#### ./deploy_test
+#### ./roaming&offloading/deploy_test
 Similar to the directory `./resourceScaling/experiments`, this directory includes experimental deployment files. 
 Please refer to the above description of `./resourceScaling/experiments`.
 
-#### ./taskHorizontalRoaming
+#### ./roaming&offloading/taskHorizontalRoaming
 This directory includes `TaskContainerBuilder` directories that contain the source
 codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`.
 Herein, `Resource Allocator` follows the resource scaling strategy. 
@@ -157,7 +169,7 @@ transfer the load to other nodes in the same scenario to realize the resource
 reallocation of the `OOMKilled` task Pod and ensure the normal execution of 
 the task Pod.
 
-#### ./taskVerticalOffloading
+#### ./roaming&offloading/taskVerticalOffloading
 This directory includes `TaskContainerBuilder` directories that contain the source
 codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`.
 Herein, `Resource Allocator` follows the resource scaling strategy.
@@ -169,7 +181,7 @@ transfer the load to other nodes in the same scenario to realize the resource
 reallocation of the `OOMKilled` task Pod and ensure the normal execution of
 the task Pod.
 
-#### ./WorkflowInjector(ConstantArrivalPattern)
+#### ./roaming&offloading/WorkflowInjector(ConstantArrivalPattern)
 The task horizontal roaming and vertical offloading experiments use a constant 
 arrival pattern to inject `b` workflows concurrently every `300` seconds by the 
 `Workflow Injection module`, and a total of `N/b` batches were injected.
