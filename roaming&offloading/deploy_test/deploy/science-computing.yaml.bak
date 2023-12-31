@@ -1,0 +1,278 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: task-container-builder
+  namespace: cloudcontrol
+  labels:
+    app: task-container-builder
+spec:
+  selector:
+    app: builder
+  ports:
+    - port: 7070
+      protocol: TCP
+      targetPort: 7070
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-container-builder-deploy
+  namespace: cloudcontrol
+  labels:
+    app: grpc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: builder
+  template:
+    metadata:
+      labels:
+        app: builder
+    spec:
+      nodeSelector: ##添加的配置
+        node: "192.168.0.161" ##打的标签是什么，这里就写什么
+      volumes:
+        - name: log-volume
+          hostPath:
+            path: /home
+        - name: config-volume
+          hostPath:
+            path: /etc/kubernetes
+        - name: current-pem-volume
+          hostPath:
+            path: /etc/kubernetes/ssl
+      #        - name: server-ca-volume
+      #          hostPath:
+      #            path: /etc/etcd/ssl
+      containers:
+        - name: task-container-builder-ctr
+          image: shanchenggang/task-container-builder:v7.1
+          imagePullPolicy: IfNotPresent
+          #imagePullPolicy: Always
+          ports:
+            - containerPort: 7070
+              hostPort: 7070
+          volumeMounts:
+            - name: log-volume
+              mountPath: /home
+            - name: config-volume
+              mountPath: /etc/kubernetes
+            - name: current-pem-volume
+              mountPath: /etc/kubernetes/ssl
+          #            - name: server-ca-volume
+          #              mountPath: /etc/etcd/ssl
+          env:
+            #            - name: ETCD_HOST
+            #              valueFrom:
+            #                configMapKeyRef:
+            #                  name: cluster-info
+            #                  key: etcd.host
+            #            - name: ETCD_PORT
+            #              valueFrom:
+            #                configMapKeyRef:
+            #                  name: cluster-info
+            #                  key: etcd.port
+            - name: MASTER_IP
+              valueFrom:
+                configMapKeyRef:
+                  name: cluster-inform
+                  key: master.ip
+            - name: GATHER_TIME
+              valueFrom:
+                configMapKeyRef:
+                  name: cluster-inform
+                  key: gather.time
+            - name: NODE_NUM
+              valueFrom:
+                configMapKeyRef:
+                  name: cluster-inform
+                  key: node.num
+            #- name: NAMESPACE_NAME
+            #  valueFrom:
+            #    configMapKeyRef:
+            #      name: cluster-inform
+            #      key: namespace.name
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: grpc
+  name: cluster-inform
+  namespace: cloudcontrol
+data:
+  #Please change to your cluster Master address
+  #etcd.host: 192.168.6.109
+  #etcd.port: "2379"
+  #Please change to your cluster Master address
+  master.ip: 0.0.0.0
+  #the number of cluster node
+  node.num: "6"
+  #the time interval of gathering data
+  gather.time: "500"
+  #namespace.name: "cloudcontrol"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-injector
+  namespace: cloudcontrol
+  labels:
+    app: workflow-injector
+spec:
+  selector:
+    app: injector
+  ports:
+    - port: 7070
+      protocol: TCP
+      targetPort: 7070
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-injector-deploy
+  namespace: cloudcontrol
+  labels:
+    app: injector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: injector
+  template:
+    metadata:
+      labels:
+        app: injector
+    spec:
+      nodeSelector: ##添加的配置
+        node: "192.168.0.162" ##打的标签是什么，这里就写什么
+      containers:
+        - name: workflow-injector-ctr
+          #image: 192.168.6.90/workflow/resource-allocator:latest
+          image: shanchenggang/workflow-injector:v7.2
+          imagePullPolicy: IfNotPresent
+          #imagePullPolicy: Always
+          command: [ "./workflowInjector" ]
+          args: [ "3" ]
+          ports:
+            - containerPort: 7070
+              hostPort: 7070
+          env:
+            - name: TASK_NUMBERS
+              valueFrom:
+                configMapKeyRef:
+                  name: workflow-inject
+                  key: task.numbers
+          volumeMounts:
+            - name: dependency-volume
+              mountPath: /config
+      volumes:
+        - name: dependency-volume
+          configMap:
+            name: dependency-inject
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: inject
+  name: workflow-inject
+  namespace: cloudcontrol
+data:
+  task.numbers: "8"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: config
+  name: dependency-inject
+  namespace: cloudcontrol
+data:
+  dependency.json: |
+    {
+      "0": {
+          "input": [],
+          "output": ["1","2","3"],
+          "image": ["shanchenggang/task-emulator:v1.0"],
+          "cpuNum": ["500"],
+          "memNum": ["500"],
+          "args": ["-c","1","-m","100","-t","5","-i","3"],
+          "labelName": ["node"],
+          "labelValue": ["injector"]
+      },
+      "1": {
+          "input": ["0"],
+          "output": ["4"],
+          "image": ["shanchenggang/task-emulator-arm64:v1.0"],
+          "cpuNum": ["500"],
+          "memNum": ["500"],
+          "args": ["-c","1","-m","100","-t","6","-i","3"],
+          "labelName": ["edge"],
+          "labelValue": ["192.168.0.163"]
+      },
+      "2": {
+          "input": ["0"],
+    	  "output": ["5"],
+          "image": ["shanchenggang/task-emulator-arm64:v1.0"],
+          "cpuNum": ["500"],
+          "memNum": ["500"],
+          "args": ["-c","1","-m","100","-t","15","-i","3"],
+          "labelName": ["edge"],
+          "labelValue": ["192.168.0.164"]
+      },
+      "3": {
+          "input": ["0"],
+    	  "output": ["6"],
+          "image": ["shanchenggang/task-emulator-arm64:v1.0"],
+          "cpuNum": ["500"],
+          "memNum": ["500"],
+          "args": ["-c","1","-m","100","-t","15","-i","3"],
+          "labelName": ["edge"],
+          "labelValue": ["192.168.0.165"]
+      },
+      "4": {
+          "input": ["1"],
+          "output": ["7"],
+          "image": ["shanchenggang/task-emulator-arm64:v1.0"],
+          "cpuNum": ["500"],
+          "memNum": ["500"],
+          "args": ["-c","1","-m","100","-t","6","-i","3"],
+          "labelName": ["edge"],
+          "labelValue": ["192.168.0.163"]
+      },
+      "5": {
+          "input": ["2"],
+          "output": ["7"],
+          "image": ["shanchenggang/task-emulator-arm64:v1.0"],
+          "cpuNum": ["500"],
+          "memNum": ["500"],
+          "args": ["-c","1","-m","100","-t","5","-i","3"],
+          "labelName": ["edge"],
+          "labelValue": ["192.168.0.164"]
+      },
+      "6": {
+          "input": ["3"],
+          "output": ["7"],
+          "image": ["shanchenggang/task-emulator-arm64:v1.0"],
+          "cpuNum": ["500"],
+          "memNum": ["500"],
+          "args": ["-c","1","-m","100","-t","5","-i","3"],
+          "labelName": ["edge"],
+          "labelValue": ["192.168.0.165"]
+      },
+      "7": {
+          "input": ["4","5","6"],
+          "output": [],
+          "image": ["shanchenggang/task-emulator:v1.0"],
+          "cpuNum": ["500"],
+          "memNum": ["500"],
+          "args": ["-c","1","-m","100","-t","5","-i","3"],
+          "labelName": ["node"],
+          "labelValue": ["builder"]
+          }
+
+      }
+
+

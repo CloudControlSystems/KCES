@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-builder
+  namespace: cloudcontrol
+  labels:
+    app: service
+spec:
+  selector:
+    app: service
+  ports:
+  - port: 7078
+    protocol: TCP
+    targetPort: 7078
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-builder-deploy
+  namespace: cloudcontrol
+  labels:
+    app: service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service
+  template:
+    metadata:
+      labels:
+        app: service
+    spec:
+      nodeSelector: ##添加的配置
+        node-2: "192.168.0.162" ##打的标签是什么，这里就写什么
+      volumes:
+        - name: log-volume
+          hostPath:
+            path: /home
+        - name: config-volume
+          hostPath:
+            path: /etc/kubernetes
+        - name: current-pem-volume
+          hostPath:
+            path: /etc/kubernetes/ssl
+      containers:
+        - name: service-builder-ctr
+          image: shanchenggang/service-builder:v1.0
+          imagePullPolicy: IfNotPresent
+          #imagePullPolicy: Never
+          ports:
+            - containerPort: 7078
+              hostPort: 7078
+          volumeMounts:
+            - name: log-volume
+              mountPath: /home
+            - name: config-volume
+              mountPath: /etc/kubernetes
+            - name: current-pem-volume
+              mountPath: /etc/kubernetes/ssl
+          env:
+            - name: NAMESPACE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: cluster-info
+                  key: namespace.name
+            - name: TASK_NUM
+              valueFrom:
+                configMapKeyRef:
+                  name: cluster-info
+                  key: task.num
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: grpc
+  name: cluster-info
+  namespace: cloudcontrol
+data:
+  task.num: "21"
+  namespace.name: "cloudcontrol"
+

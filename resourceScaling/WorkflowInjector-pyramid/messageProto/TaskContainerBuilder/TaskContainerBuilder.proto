@@ -1,0 +1,65 @@
+syntax = "proto3";
+//option go_package = ".;TaskContainerBuilder";
+package TaskContainerBuilder;
+
+//工作流任务输入请求
+message InputWorkflowTaskRequest {
+  //workflow的ID
+  string workflowId = 1;
+  //workflow的task数目
+  uint32 taskNum =2;
+  //taskName
+  string taskName = 3;
+  //任务镜像
+  string image = 4;
+  //基本单位 millicore(1Core=1000millicore)
+  uint64 cpu = 5;
+  //基本单位 MiB
+  uint64 mem = 6;
+  //任务在工作流的执行顺序
+  uint32 taskOrder = 7;
+  // 环境变量
+  map<string, string> env = 8;
+  // 输入向量
+  repeated string input_vector = 9;
+  // 输出向量
+  repeated string output_vector = 10;
+  //任务pod所需参数
+  repeated string args = 11;
+  // 任务pos labels
+  map<string, string> labels = 12;
+  //基本单位 Second
+  uint64 durationTime = 13;
+  //任务容器的最小cpu(stress操作cpu的最小值,m)
+  uint64 minCpu = 14;
+  //任务容器的最小memory(stress操作内存的最小值,Mi)
+  uint64 minMem = 15;
+}
+message InputWorkflowTaskResponse {
+  //成功创建 pod 的状态码，1表示成功
+  uint32 result = 1;
+  //pod共享存储路径
+  string volumePath = 2;
+  //在失败状态下，可以设置状态码
+  //成功状态（result>=1），客户端不关系此字段，置为 0 即可
+  uint32 err_no = 3;
+
+}
+
+//请求发送下一个工作流
+message NextWorkflowSendRequest {
+  //已经完成的workflow的ID
+  string finishedWorkflowId = 1;
+}
+message NextWorkflowSendResponse {
+  //开始发送下一个工作流状态码，1表示成功
+  bool result = 1;
+}
+
+//工作流任务发送服务service
+service TaskContainerBuilderService {
+  rpc InputWorkflowTask(InputWorkflowTaskRequest) returns (InputWorkflowTaskResponse);
+}
+service WorkflowInjectorService {
+  rpc NextWorkflowSend(NextWorkflowSendRequest) returns (NextWorkflowSendResponse);
+}
