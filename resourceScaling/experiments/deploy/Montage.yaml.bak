@@ -47,7 +47,10 @@ spec:
       #            path: /etc/etcd/ssl
       containers:
         - name: task-container-builder-ctr
-          #v8.4-task roaming, v8.5 task vertical offloading, baseline: no-scaling algorithm, scaling: resource-scaling algorithm
+          #FCFS(shanchenggang/task-container-builder:baseline)
+          #STF(shanchenggang/task-container-builder-stf:v1.0)
+          #LTF(shanchenggang/task-container-builder-ltf:v1.0)
+          #scaling: resource-scaling algorithm(shanchenggang/task-container-builder:scaling)
           image: shanchenggang/task-container-builder:baseline
           imagePullPolicy: IfNotPresent
           #imagePullPolicy: Always
@@ -159,12 +162,13 @@ spec:
         node-2: "192.168.0.162" ##打的标签是什么，这里就写什么
       containers:
         - name: workflow-injector-ctr
-          #Constant v9.0, Linear v9.1, Pyramid v9.2
+          #Constant Arrival Pattern v9.0, Linear Arrival Pattern v9.1, Pyramid Arrival Pattern v9.2
           image: shanchenggang/workflow-injector:v9.0
           imagePullPolicy: IfNotPresent
           #imagePullPolicy: Always
           command: [ "./workflowInjector" ]
           #total number of workflows
+          #Constant: wf number 10, Linear: wf number 10, Pyramid: wf number 17
           args: [ "10" ]
           ports:
             - containerPort: 7070
@@ -225,14 +229,16 @@ data:
   task.numbers: "21"
   redis.server: 0.0.0.0
   redis.port: "6379"
-  #quantity per batch in Constant Arrival Pattern
+  #quantity per batch in Constant Arrival Pattern "2"
+  #batch number in total for Linear Arrival Pattern "4"
+  #batch number in total for Pyramid Arrival Pattern "3"
   batch.num: "2"
   #time interval (seconds)
   interval.time: "300"
   #slope in Linear or Pyramid Pattern
-  slope.value: "2"
+  slope.value: "1"
   #initial value in Linear or Pyramid Pattern
-  initial.value: "2"
+  initial.value: "1"
 ---
 apiVersion: v1
 kind: ConfigMap

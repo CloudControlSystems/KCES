@@ -13,21 +13,21 @@ To address these two issues, we propose a KubeEdge-Cloud-Edge-Scheduling scheme
 named `KCES`, a workflow containerization scheduling scheme for the KubeEdge 
 cloud-edge framework. 
 The `KCES` includes a cloud-edge workflow scheduling engine for KubeEdge and 
-workflow scheduling strategies for task horizontal roaming and vertical offloading.
+incorporates scheduling strategies for task horizontal roaming and vertical offloading.
 Considering the scheduling optimization of cloud-edge workflows, we propose a 
 cloud-edge workflow scheduling model and cloud-edge node model and design a 
 cloud-edge workflow scheduling engine to maximize cloud-edge resource utilization 
 under the constraint of workflow task delay. A cloud-edge resource hybrid 
 management technology is used to design the cloud-edge resource evaluation and 
 resource allocation algorithm to achieve cloud-edge resource collaboration. 
-Based on the idea of distributed functional roles and the hierarchical division 
+Based on the idea of distributed functional role and the hierarchical division 
 of computing power, the horizontal roaming among the edges and vertical offloading 
 strategies between the cloud and edges for workflow tasks are designed to realize 
 the cloud-edge application collaboration.
 
 
 ## Access notification
-Over the past two years, our team has been dedicated to developing a cloud 
+Over the past three years, our team has been dedicated to developing a cloud 
 workflow scheduling engine for the K8s cluster suitable for cloud or cloud-edge 
 environments, aiming to provide a prototype software solution for workflow 
 containerization scheduling in the cloud-edge environment. Up to now, a workflow 
@@ -70,25 +70,66 @@ More information on original `Containerized Worklflow Builder` refers to our for
 
 ### ./resourceScaling
 
-This directory includes `baseline`, `experiments`, `resourceScalingMethod`, `resourceUsage`, `usage_deploy`, `WorkflowInjector-constant`, 
+This directory includes `FCFS`, `KCES`, `LTF`, `STF`, `experiments`, `resourceUsage`, `usage_deploy`, `WorkflowInjector-constant`, 
 `WorkflowInjector-linear`, and `WorkflowInjector-pyramid` directories.
 
 These directory files mainly correspond to the experimental evaluation and comparative analysis 
-of the baseline and the `KCES` scheme.
+of the `FCFS`, `STF`, `LTF` and `KCES` scheme.
 It depicts the execution process of the `Cloud-Edge Workflow Scheduling Engine` 
 running the IoT application workflow in the cloud-edge scenario, evaluates the 
 performance of the `KCES` scheme, and verifies the effect of the task horizontal 
 roaming and vertical offloading algorithms.
 
-#### ./resourceScaling/baseline
+#### ./resourceScaling/FCFS
 This directory includes `TaskContainerBuilder` directories that contain the source 
 codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`. 
-Herein, `Resource Allocator` follows the `First-Come-First-Serve` (`FCFS`) scheme, and 
-this scheme depends on the adequacy of the remaining resources on a node in the 
-cloud-edge cluster. If the residual resource amount of the node is sufficient, 
+Herein, `Containerized Workflow Builder` follows the `First-Come-First-Serve` (`FCFS`) scheme 
+to create workflow tasks, and this scheme depends on the adequacy of the remaining resources 
+on a node in the cloud-edge cluster. If the residual resource amount of the node is sufficient, 
 the resource allocation strategy is implemented. Otherwise, it needs to wait for 
 other task Pods on the node to complete and release resources to meet the resource 
 requirements requested by the current task.
+
+After entering the `TaskContainerBuilder` directory, You can build the Docker image by 
+the `Dockerfile` file.
+
+    docker build -t shanchenggang/task-container-builder:baseline .
+
+#### ./resourceScaling/STF
+This directory includes `TaskContainerBuilder` directories that contain the source
+codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`.
+Herein, STF algorithm only acts on multiple parallel child node tasks with the same parent node, 
+sorting them in ascending order according to the task priority of the shortest execution time, 
+and then entering the workflow task creation process.
+
+After entering the `TaskContainerBuilder` directory, You can build the Docker image by
+the `Dockerfile` file.
+
+    docker build -t shanchenggang/task-container-builder-stf:v1.0 .
+
+#### ./resourceScaling/LTF
+This directory includes `TaskContainerBuilder` directories that contain the source
+codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`.
+Herein, LTF algorithm only acts on multiple parallel child node tasks with the same parent node,
+sorting them in descending order according to the task priority of the longest execution time,
+and then entering the workflow task creation process.
+
+After entering the `TaskContainerBuilder` directory, You can build the Docker image by
+the `Dockerfile` file.
+
+    docker build -t shanchenggang/task-container-builder-ltf:v1.0 .
+
+#### ./resourceScaling/KCES
+This directory includes `TaskContainerBuilder` directories that contain the source
+codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`.
+Herein, `Containerized Workflow Builder` follows the resource scaling strategy, aims to make
+each cloud or edge node host as many workflow tasks as possible, and maximizes the
+resource utilization of cloud-edge nodes without violating the task deadline.
+
+After entering the `TaskContainerBuilder` directory, You can build the Docker image by
+the `Dockerfile` file.
+
+    docker build -t shanchenggang/task-container-builder:scaling .
 
 #### ./resourceScaling/experiments
 This directory includes experimental deployment files. The users can deploy the 
@@ -107,13 +148,6 @@ The edges and device end belong to distinct edge scenarios, such as `edge-1` and
 `edge-2`. The `Cloud-Edge Workflow Scheduling Engine` is deployed in the `K8s` cluster 
 in the cloud, with continuous injection of workflows.
 ![Cloud-edge testbed.](figures/testbed.png "the overview of Cloud-edge testbed.")
-
-#### ./resourceScaling/resourceScalingMethod
-This directory includes `TaskContainerBuilder` directories that contain the source
-codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`.
-Herein, `Resource Allocator` follows the resource scaling strategy, aims to make 
-each cloud or edge node host as many workflow tasks as possible, and maximizes the 
-resource utilization of cloud-edge nodes without violating the task deadline.
 
 #### ./resourceScaling/resourceUsage
 This directory includes the source codes of the resource gathering module. 
@@ -169,6 +203,12 @@ transfer the load to other nodes in the same scenario to realize the resource
 reallocation of the `OOMKilled` task Pod and ensure the normal execution of 
 the task Pod.
 
+After entering the `TaskContainerBuilder` directory, You can build the Docker image by
+the `Dockerfile` file.
+
+    docker build -t shanchenggang/task-container-builder:roaming .
+
+
 #### ./roaming&offloading/taskVerticalOffloading
 This directory includes `TaskContainerBuilder` directories that contain the source
 codes of `Containerized Workflow Builder` within the `Cloud-Edge Workflow Scheduling Engine`.
@@ -180,6 +220,11 @@ Scheduling Engine` can automatically capture the `OOMKilled` task Pod and
 transfer the load to other nodes in the same scenario to realize the resource
 reallocation of the `OOMKilled` task Pod and ensure the normal execution of
 the task Pod.
+
+After entering the `TaskContainerBuilder` directory, You can build the Docker image by
+the `Dockerfile` file.
+
+    docker build -t shanchenggang/task-container-builder:offloading .
 
 #### ./roaming&offloading/WorkflowInjector(ConstantArrivalPattern)
 The task horizontal roaming and vertical offloading experiments use a constant 

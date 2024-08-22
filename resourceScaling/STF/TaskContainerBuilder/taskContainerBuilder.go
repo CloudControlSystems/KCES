@@ -25,6 +25,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -108,7 +109,8 @@ var namespaceLister v2.NamespaceLister
 var taskSema = make(chan int, 1)
 var redisSema = make(chan int, 1)
 
-type WorkflowTaskMap map[uint32] WorkflowTask
+
+type  WorkflowTaskMap map[uint32] WorkflowTask
 var workflowTaskMap = make(map[uint32] WorkflowTask)
 var workflowMap = make(map[uint32] map[uint32] WorkflowTask)
 
@@ -118,8 +120,6 @@ var thisTaskPodExist bool
 var dependencyMap = make(map[uint32]map[string][]string)
 var taskCompletedStateMap = make(map[uint32]bool)
 var wfTaskCompletedStateMap = make(map[uint32] map[uint32]bool)
-var clusterNodeLabelMap = make(map[string][]string)
-var m = make(map[string]bool)
 
 var clusterAllocatedCpu uint64
 var clusterAllocatedMemory uint64
@@ -129,7 +129,7 @@ var masterIp string
 var gatherTime string
 var interval uint32
 var redisIpPort string
-var labelIpListSlice []string
+
 type saveWorkflowTaskData struct {
 	StartTime uint64
 	Duration uint64
@@ -148,6 +148,7 @@ type Builder func(taskObject WorkflowTask) (*TaskContainerBuilder.InputWorkflowT
 type ResourceServiceImpl struct {
 
 }
+
 //workflow input interface module, received requests of workflow task generation from
 //workflow injection module via gRPC
 func (rs *ResourceServiceImpl) InputWorkflowTask(ctx context.Context,request *TaskContainerBuilder.InputWorkflowTaskRequest)(*TaskContainerBuilder.InputWorkflowTaskResponse,error) {
@@ -179,20 +180,8 @@ func (rs *ResourceServiceImpl) InputWorkflowTask(ctx context.Context,request *Ta
 	<- taskReceive
 	log.Println(workflowTaskMap[request.TaskOrder])
 
-	//update the start time and deadline of tasks.
+    //update the start time and deadline of tasks.
 	writeDataInRedis(workflowTaskMap[request.TaskOrder],redisIpPort)
-
-    //Obtain each task's Labels and populate task 'label' information into Map dictionary.
-	for labelKey, labelValue := range request.Labels {
-		labelIpListSlice = clusterNodeLabelMap[labelKey]
-		//result := labelIpListSlice
-		//Remove duplicate elements from the slice
-		if _, ok := m[labelValue]; !ok {
-			clusterNodeLabelMap[labelKey] = append(labelIpListSlice,labelValue)
-			m[labelValue] = true
-		}
-	}
-	log.Println(clusterNodeLabelMap)
 
 	/*If it is the first task in this workflow, invoke CreateTask function to generate task container.
 	If not, invoke CreateTask function to generate task container through Update event of Informer.*/
@@ -220,9 +209,9 @@ func (rs *ResourceServiceImpl) InputWorkflowTask(ctx context.Context,request *Ta
 			panic(err.Error())
 		}
 		workflowMap[uint32(wfId)] = workflowTaskMap
-		//log.Println(workflowMap)
+		log.Println(workflowMap)
 		wfTaskCompletedStateMap[uint32(wfId)] = taskCompletedStateMap
-		//log.Println(wfTaskCompletedStateMap)
+		log.Println(wfTaskCompletedStateMap)
 		workflowTaskMap = make(map[uint32] WorkflowTask)
 		taskCompletedStateMap =  make(map[uint32]bool)
 	}
@@ -245,8 +234,6 @@ func writeDataInRedis(task WorkflowTask, redisServer string){
 	var uploadTaskData saveWorkflowTaskData
 	var unMarshalData saveWorkflowTaskData
 	defer writeDataInRedisFail()
-	uploadTaskData.Labels = make(map[string]string)
-
 	// build connection
 	log.Printf("redisServer: %v\n",redisServer)
 	conn, err := redis.Dial("tcp", redisServer)
@@ -324,7 +311,6 @@ func writeDataInRedis(task WorkflowTask, redisServer string){
 		return
 	}
 	// 关闭连接
-
 	defer conn.Close()
 }
 
@@ -479,15 +465,6 @@ func DeleteCurrentFailedTaskContainer(param interface{})(*TaskContainerBuilder.I
 
 		/*The Failed task has been completed and deleted, and its status is set to False*/
 		wfTaskCompletedStateMap[uint32(wfId)][task.TaskOrder] = false
-		//update task state in the redis
-		boolValue := false
-		//Recreate this task pod and reallocate one node
-		task.Labels = HorizontalTaskTransferScheme(task)
-        //update FailedTaskPod's Label and Bool in Redis
-		updateFailedTaskPodLabelAndBoolInRedis(task,redisIpPort,boolValue)
-        //update workflowMap
-		workflowMap[uint32(wfId)][uint32(taskNum)] = task
-
 		log.Printf("The bool val of current task[%d] is: %v.\n",task.TaskOrder,
 			wfTaskCompletedStateMap[uint32(wfId)][task.TaskOrder] )
 		//log.Printf("Staring to trigger the current task container again.\n")
@@ -499,49 +476,6 @@ func DeleteCurrentFailedTaskContainer(param interface{})(*TaskContainerBuilder.I
 		taskPodResponse.Result = 0
 		return &taskPodResponse, nil
 	}
-}
-
-func updateFailedTaskPodLabelAndBoolInRedis(task WorkflowTask, redisServer string, boolValue bool){
-	var unMarshalData saveWorkflowTaskData
-	defer updateDataInRedisFail()
-
-	// build connection
-	log.Printf("redisServer: %v\n",redisServer)
-	redisSema <- 1
-	conn, err := redis.Dial("tcp", redisServer)
-	if err != nil {
-		log.Println("redis.Dial err=", err)
-		return
-	}
-
-	r, err := redis.Bytes(conn.Do("get", task.TaskName))
-	if err != nil {
-		log.Println("get err=", err)
-		return
-	}
-
-	err = json.Unmarshal(r,&unMarshalData)
-	if err != nil {
-		log.Println("json unMarshal is err: ", err)
-		return
-	}
-	unMarshalData.AliveStatus = boolValue
-	unMarshalData.Labels = make(map[string]string)
-	unMarshalData.Labels = task.Labels
-	//结构体序列化为字符串
-	taskData, err := json.Marshal(unMarshalData)
-	// 通过go向redis写入数据 string [key - value]
-
-	_, err = conn.Do("set", task.TaskName, taskData)
-	if err != nil {
-		log.Println("set err=", err)
-		return
-	}
-	log.Printf("taskName: %v,taskData: %v\n",task.TaskName, unMarshalData)
-	// 关闭连接
-	conn.Close()
-
-	<- redisSema
 }
 
 //Start to input next workflow task
@@ -614,7 +548,9 @@ func ScheduleNextBatchTaskContainer(param interface{})(*TaskContainerBuilder.Inp
 		}
 
 		if task, ok := workflowMap[uint32(wfId)][uint32(taskNum)]; ok {
-			for _, output := range task.OutputVector {
+		//Ascending Sorting (Shortest Task First)
+		task = Sorting(task,workflowMap[uint32(wfId)])
+		for _, output := range task.OutputVector {
 				index, err := strconv.Atoi(output)
 				if err != nil {
 					panic(err.Error())
@@ -622,7 +558,8 @@ func ScheduleNextBatchTaskContainer(param interface{})(*TaskContainerBuilder.Inp
 				log.Printf("The outVector of current task is: [%d]\n",index)
 				log.Println("--------------Start time for goroutine in CreateTaskForScheduleNextBatch in time:", time.Now().UnixNano()/1e6)
 				wait.Add(1)
-				go CreateTaskForScheduleNextBatch(uint32(wfId),uint32(index),&wait)
+				//To ensure that task containers are created in order, we discard go statements here
+				CreateTaskForScheduleNextBatch(uint32(wfId),uint32(index),&wait)
 			}
 //			defer runtime.HandleCrash()
 			wait.Wait()
@@ -641,6 +578,45 @@ func ScheduleNextBatchTaskContainer(param interface{})(*TaskContainerBuilder.Inp
 		return &response, nil
 	}
 }
+//Sorting Algorithms, including STF and LTF two ways
+func Sorting(taskIn WorkflowTask, wfTaskMap WorkflowTaskMap) (task WorkflowTask) {
+
+	m := map[string]uint64{}
+	for _, outputValue := range taskIn.OutputVector {
+		taskNum, err := strconv.Atoi(outputValue)
+		if err != nil {
+			panic(err.Error())
+		}
+		m[outputValue] = wfTaskMap[uint32(taskNum)].Duration
+	}
+	type Pair struct {
+		Key   string
+		Value uint64
+	}
+	pairs := make([]Pair, len(m))
+	i := 0
+	for k, v := range m {
+		pairs[i] = Pair{Key: k, Value: v}
+		i++
+	}
+	//Sort in ascending order, Shortest Task First
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].Value < pairs[j].Value
+	})
+
+	//Sort in ascending order, Longest Task First
+	//sort.Slice(pairs, func(i, j int) bool {
+	//	return pairs[i].Value > pairs[j].Value
+	//})
+	// Output Printing
+	taskIn.OutputVector = taskIn.OutputVector[:0]
+	for _, pair := range pairs {
+		taskIn.OutputVector = append(taskIn.OutputVector, pair.Key)
+		log.Println("Key:", pair.Key, "Value:", pair.Value)
+	}
+	return taskIn
+}
+
 func CreateTaskForScheduleNextBatch(wfNum uint32,order uint32,waiter *sync.WaitGroup,) {
 //func CreateTaskForScheduleNextBatch(order uint32) {
 
@@ -781,9 +757,9 @@ func CreateCurrentTaskAgain(param interface{})(*TaskContainerBuilder.InputWorkfl
 		if err != nil {
 			panic(err.Error())
 		}
-		if task, ok := workflowMap[uint32(wfId)][uint32(taskNum)]; ok {
 
-			//if task, ok := workflowTaskMap[uint32(taskNum)]; ok {
+		if task, ok := workflowMap[uint32(wfId)][uint32(taskNum)]; ok {
+		//if task, ok := workflowTaskMap[uint32(taskNum)]; ok {
 			//log.Println(task)
 			if task.InputVector == nil {
 				taskSema <- 1
@@ -838,6 +814,7 @@ func CreateCurrentTaskAgain(param interface{})(*TaskContainerBuilder.InputWorkfl
 	}
 }
 
+
 func CreateTaskContainer(task WorkflowTask,clientService *kubernetes.Clientset, redisIpPort string)(string, uint32, error) {
 
 	//taskSema <- 1
@@ -860,7 +837,7 @@ func updateDataInRedisFail() {
 	}
 }
 
-func updateDataInRedis(task WorkflowTask, redisServer string, boolValue bool){
+func updateDataInRedis(task WorkflowTask, redisServer string){
 	var unMarshalData saveWorkflowTaskData
 	defer updateDataInRedisFail()
 
@@ -884,7 +861,8 @@ func updateDataInRedis(task WorkflowTask, redisServer string, boolValue bool){
 		log.Println("json unMarshal is err: ", err)
 		return
 	}
-	unMarshalData.AliveStatus = boolValue
+
+	unMarshalData.AliveStatus = true
 	//结构体序列化为字符串
 	taskData, err := json.Marshal(unMarshalData)
 	// 通过go向redis写入数据 string [key - value]
@@ -1050,17 +1028,16 @@ func clientTaskCreatePod(task WorkflowTask ,clientService *kubernetes.Clientset,
 
 	} else {
 		//Cloud-edge resource evaluation algorithm
-		//task.Cpu, task.Mem= CloudEdgeResourceEvaluationBaseAlgorithm(task,redisIpPort)
-		task.Cpu, task.Mem = CloudEdgeResourceScalingAlgorithm(task,redisIpPort)
+		task.Cpu, task.Mem = CloudEdgeResourceEvaluationBaseAlgorithm(task,redisIpPort)
+		//task.Cpu, task.Mem = CloudEdgeResourceScalingAlgorithm(task,redisIpPort)
 		//write experimental data into /home/exp.txt.
-		outData := "AllocationResource: " + task.TaskName + " : " + "CPU: " +
-			strconv.Itoa(int(task.Cpu)) + ": Memory: "+ strconv.Itoa(int(task.Mem)) +"\n"
+		outData := "AllocationResource: " + task.TaskName + " : " + "CPU: " + strconv.Itoa(int(task.Cpu)) + ": Memory: "+ strconv.Itoa(int(task.Mem)) +"\n"
 		experimentalDataObj.WriteString(outData)
 
-		log.Printf("resourceAllocation: %dm, %dMi.\n",task.Cpu,task.Mem)
+		log.Printf("resourceAllocate: %dm, %dMi.\n",task.Cpu,task.Mem)
+
 		//Update task's completed time in Redis
-		boolValue := true
-		updateDataInRedis(task,redisIpPort,boolValue)
+		updateDataInRedis(task,redisIpPort)
 
 		path, returnErrNo, err := CreateTaskPod(task, clientService, podNamespace, IsfirstPod, pvcClient)
 		VolumePath := path
@@ -1070,37 +1047,6 @@ func clientTaskCreatePod(task WorkflowTask ,clientService *kubernetes.Clientset,
 		return VolumePath, returnErrNo, nil
 	}
 }
-
-func HorizontalTaskTransferScheme(task WorkflowTask) (labels map[string]string) {
-
-	for labelKey, labelValue := range task.Labels {
-		//Obtain the map of remaining resources of each node
-		ResidualMap := k8sResource.GetK8sEachNodeResource(podLister, nodeLister, nodeResidualMap)
-		//Obtain the remaining resources in the current node with this task
-		cpuTemp := uint64(0)
-		memTemp := uint64(0)
-		for _, iPAddress := range clusterNodeLabelMap[labelKey] {
-			//task.Labels = make(map[string]string)
-			if labelValue != iPAddress {
-				if ResidualMap[iPAddress].MilliCpu >= cpuTemp && ResidualMap[iPAddress].Memory >= memTemp {
-					cpuTemp = ResidualMap[iPAddress].MilliCpu
-					memTemp = ResidualMap[iPAddress].Memory
-					task.Labels[labelKey] = iPAddress
-				}
-			}
-			//if labelValue != iPAddress {
-			//	cpuTemp := ResidualMap[iPAddress].MilliCpu
-			//	memTemp := ResidualMap[iPAddress].Memory
-			//	if cpuTemp >= task.Cpu && memTemp >= task.Mem {
-			//		task.Labels[labelKey] = iPAddress
-			//	}
-			//}
-		}
-	}
-	log.Printf("rescheduling on: %s",task.Labels)
-	return task.Labels
-}
-
 //Cloud-edge: Baseline--As long as edge node can accommodate sufficient resources ,
 //the Baseline algorithm allocate resources, otherwise it waits until the resources are released.
 func CloudEdgeResourceEvaluationBaseAlgorithm(task WorkflowTask,redisIpPort string) (cpuNum uint64, memNum uint64) {
@@ -1131,13 +1077,8 @@ func CloudEdgeResourceEvaluationBaseAlgorithm(task WorkflowTask,redisIpPort stri
 		  task, a task container would be generated*/
 		if (currentNodeResidualCpuResource >= task.Cpu) && (currentNodeResidualMemResource >= task.Mem) {
 			//Create this task POD if the cluster resources are sufficient
-			//return task.Cpu, task.Mem
 			break
 		}
-		//else {
-		//	 taskLabels := HorizontalTaskTransferScheme(task)
-		//	 return task.Cpu, task.Mem, taskLabels
-		//}
 		//log.Println("Remaining resources fail to suffice for creating task pods and execute for loop.")
 	}
 	return task.Cpu, task.Mem
@@ -1168,7 +1109,7 @@ func CloudEdgeResourceScalingAlgorithm(task WorkflowTask,redisIpPort string) (cp
 			  if nodeIp == labelValue {
 				  log.Println(task.Labels)
 				  currentNodeResidualCpuResource = val.MilliCpu
-				  currentNodeResidualMemResource = val.Memory
+				  currentNodeResidualCpuResource = val.Memory
 				  break
 			  }
 		  }
@@ -1184,7 +1125,7 @@ func CloudEdgeResourceScalingAlgorithm(task WorkflowTask,redisIpPort string) (cp
 				  cpuNum = task.Cpu
 				  memNum = task.Mem
 				  log.Printf("allocation pod's cpuNum: %dm, allocation pod's memNum: %dMi.\n", cpuNum, memNum)
-				  //return cpuNum, memNum
+				  return cpuNum, memNum
 		  }
 		  //(2) The remaining CPU resource of the current node is insufficient.
 		  //     Compress the CPU resources of tasks in proportion.
@@ -1195,7 +1136,7 @@ func CloudEdgeResourceScalingAlgorithm(task WorkflowTask,redisIpPort string) (cp
 				  cpuNum = cpuNumTemp
 				  memNum = task.Mem
 				  log.Printf("allocation pod's cpuNum: %dm, allocation pod's memNum: %dMi.\n", cpuNum, memNum)
-				  //return cpuNum, memNum
+				  return cpuNum, memNum
 			  }
 		  //(3)The remaining MEM resource of the task is insufficient.
 		  //Compress the MEM resources of tasks in proportion.
@@ -1206,7 +1147,7 @@ func CloudEdgeResourceScalingAlgorithm(task WorkflowTask,redisIpPort string) (cp
 			  memNumTemp := task.Mem * currentNodeResidualMemResource / accumulatedMemFromRedis
 			  memNum = memNumTemp
 			  log.Printf("allocation pod's cpuNum: %dm, allocation pod's memNum: %dMi.\n", cpuNum, memNum)
-			  //return cpuNum, memNum
+			  return cpuNum, memNum
 			  }
 
 			//(4) Both remaining resources are insufficient.
@@ -1287,20 +1228,22 @@ func acquireRelatedDataFromRedis(task WorkflowTask, redisServer string)(totalCpu
 		log.Println("get err=", err)
 		return
 	}
+
 	//deserialization
 	err = json.Unmarshal(r,&currentTaskDataFromRedis)
 	if err != nil {
 		log.Println("json unMarshal is err: ", err)
 		return
 	}
-	totalCpu = 0
-	totalMem = 0
+	totalCpu = currentTaskDataFromRedis.MilliCpu
+	totalMem = currentTaskDataFromRedis.Memory
 	log.Printf("currentTaskMilliCpu: %v,currentTaskMemory: %v\n",currentTaskDataFromRedis.MilliCpu,
 		currentTaskDataFromRedis.Memory)
 	// read task data from redis
     //Firstly, obtain all keys from redis.
 	cacheName := "workflow*"
 	keys,err := redis.Strings(conn.Do("keys", cacheName))
+
     //Second, get the corresponding values by using key.
 	for _,key := range keys {
 		taskData,err := redis.Bytes(conn.Do("get", key))
@@ -1317,17 +1260,15 @@ func acquireRelatedDataFromRedis(task WorkflowTask, redisServer string)(totalCpu
 		//Check the AliveStatus and compare deadline
 		for taskLabelKey, _ := range task.Labels {
 			if readDataFromRedis.AliveStatus == false &&
-				readDataFromRedis.Labels[taskLabelKey] == task.Labels[taskLabelKey] {
+				readDataFromRedis.Labels[taskLabelKey] == currentTaskDataFromRedis.Labels[taskLabelKey] {
 				if readDataFromRedis.StartTime < currentTaskDataFromRedis.Deadline &&
 					readDataFromRedis.StartTime >= currentTaskDataFromRedis.StartTime {
 					totalCpu += readDataFromRedis.MilliCpu
 					totalMem += readDataFromRedis.Memory
 				}
-				log.Printf("%v: %v\n",key, readDataFromRedis)
 			}
-			currentTaskDataFromRedis.Labels = make(map[string]string)
 		}
-		readDataFromRedis.Labels = make(map[string]string)
+		//log.Printf("%v: %v\n",key, readDataFromRedis)
 	}
 	// 关闭连接
 	conn.Close()
