@@ -1,4 +1,4 @@
-# KCES: A Workflow Containerization Scheduling Scheme Under Cloud-Edge Collaboration Framework.
+# KCES: A Workflow Containerization Scheduling Scheme Under Cloud-Edge Collaboration Framework
 
 ## Background
 
